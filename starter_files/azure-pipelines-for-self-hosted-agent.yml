@@ -29,11 +29,23 @@ stages:
     pool: Naveen-LinuxVM
     steps:    
     - script: |
-        python -m pip install --upgrade pip
-        python -m pip install setup
-        python -m pip install -r requirements.txt
-      workingDirectory: $(projectRoot)
-      displayName: 'Step - Install requirements.txt'
+        which python3.9 || true
+        python3.9 --version || true
+        python3.9 -m pip --version || true
+        python3.9 -c "import sys; print(sys.executable)"
+    displayName: "Debug Python/pip"
+
+- script: |
+    python3.9 -m venv .venv
+    . .venv/bin/activate
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+  workingDirectory: $(projectRoot)
+  displayName: "Create venv + install deps"
+
+
+
+
 
     # - script: |
     #     export PATH=$HOME/.local/bin:$PATH
