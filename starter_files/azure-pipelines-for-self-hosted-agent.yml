@@ -1,25 +1,11 @@
-# Starter pipeline    
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
 trigger:
-- main
+- master
 
-# TODO: Replace the agent pool name
 pool: Naveen-LinuxVM
 
 variables:
-  # TODO: Replace the service connection name as used in the DevOps project settings
-  #azureServiceConnectionId: 'mySC'
-  
-  # TODO: Specify the value of the existing Web App name
-  #webAppName: 'mywebapp207578'
-
-  # Environment name
-  #environmentName: 'flask-ml-service'
-
-  # Project root folder. Point to the folder containing manage.py file.
   projectRoot: $(System.DefaultWorkingDirectory)
+  deployRoot: /home/320273321/deploy/flaskapp
 
 stages:
 - stage: Build
@@ -27,71 +13,93 @@ stages:
   jobs:
   - job: BuildJob
     pool: Naveen-LinuxVM
-    steps:    
+    steps:
+
+
+
     - script: |
         set -euo pipefail
         cd "$(projectRoot)"
 
         python3.9 --version
 
-        # Create venv (pip will be available inside venv)
+        # Build-time venv (for lint/tests if you add them)
+        rm -rf .venv
         python3.9 -m venv .venv
-
-        # Activate venv
         source .venv/bin/activate
 
-        # Use pip via python -m pip (most robust)
         python -m pip install --upgrade pip
         python -m pip install -r requirements.txt
 
-        # sanity checks
-        which python
-        python -m pip --version
+        # OPTIONAL: add lint/tests here
+        # python -m pytest
+
+        # IMPORTANT: do NOT ship venv in artifact
+        deactivate || true
+        rm -rf .venv
+
+        echo "OK: venv removed before packaging"
       workingDirectory: $(projectRoot)
-      displayName: "Create venv + install dependencies"
-
-
+      displayName: "Build: install deps (optional) and remove venv before packaging"
 
     - task: ArchiveFiles@2
-      displayName: 'Archive files'
+      displayName: "Build: archive source as tar"
       inputs:
-        rootFolderOrFile: '$(projectRoot)'
+        rootFolderOrFile: "$(projectRoot)"
         includeRootFolder: false
         archiveType: tar
-        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar
+        archiveFile: "$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar"
         replaceExistingArchive: true
 
-    - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar
-      displayName: 'Step - Upload package'
+    - upload: "$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar"
+      displayName: "Build: upload artifact"
       artifact: drop
 
-- stage: DeployLocal
-  displayName: "Deploy locally"
+
+- stage: Deploy
+  displayName: Deploy stage (local)
   dependsOn: Build
   condition: succeeded()
   jobs:
   - job: DeployJob
     pool: Naveen-LinuxVM
     steps:
+    - checkout: none
+
     - download: current
       artifact: drop
-      displayName: "Download artifact"
+      displayName: "Deploy: download artifact"
 
     - script: |
         set -euo pipefail
-        RUN_DIR="/home/320273321/msdocs-python-flask-webapp-quickstart"
-        PKG="$(Pipeline.Workspace)/drop/$(Build.BuildId).tar"
 
-        mkdir -p "$RUN_DIR"
-        tar -xf "$PKG" -C "$RUN_DIR"  # if tar
+        TAR_FILE="$(Pipeline.Workspace)/drop/$(Build.BuildId).tar"
+        DEPLOY_DIR="$(deployRoot)"
 
-      displayName: "Extract package into run directory"
+        echo "Tar: $TAR_FILE"
+        echo "Deploy dir: $DEPLOY_DIR"
 
-    - script: |
-        set -euo pipefail
+        mkdir -p "$DEPLOY_DIR"
+
+        # Extract over the deploy dir (overlay)
+        tar -xf "$TAR_FILE" -C "$DEPLOY_DIR"
+
+        cd "$DEPLOY_DIR"
+
+        # Create venv fresh in the deploy directory (prevents 'bad interpreter' fiasco)
+        rm -rf .venv
+        python3.9 -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+
+        # Restart Flask (manual-process style)
         pkill -f "flask --app app run --host 0.0.0.0 --port 5000" || true
-        cd /home/320273321/msdocs-python-flask-webapp-quickstart
         nohup flask --app app run --host 0.0.0.0 --port 5000 > flask.out 2>&1 &
+
         sleep 2
         curl -fsS http://127.0.0.1:5000/ | head
-      displayName: "Restart Flask + smoke test"
+
+        echo "Deployed and running from: $DEPLOY_DIR"
+        echo "Logs: $DEPLOY_DIR/flask.out"
+      displayName: "Deploy: extract tar, create venv, install deps, restart Flask, smoke test"
