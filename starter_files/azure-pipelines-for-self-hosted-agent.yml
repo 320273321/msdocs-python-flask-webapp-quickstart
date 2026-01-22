@@ -69,14 +69,14 @@ stages:
     #   displayName:  'myStep 3 - Run lint tests'
 
     - task: ArchiveFiles@2
-      displayName: 'myStep 4 - Archive files'
+      displayName: 'Archive files'
       inputs:
         rootFolderOrFile: '$(projectRoot)'
         includeRootFolder: false
-        archiveType: zip
-        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+        archiveType: tar
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar
         replaceExistingArchive: true
 
-    - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+    - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar
       displayName: 'Step - Upload package'
       artifact: drop
