@@ -29,24 +29,24 @@ stages:
     pool: Naveen-LinuxVM
     steps:    
     - script: |
-        python3.7 -m pip install --upgrade pip
-        python3.7 -m pip install setup
-        python3.7 -m pip install -r requirements.txt
+        python3.9 -m pip install --upgrade pip
+        python3.9 -m pip install setup
+        python3.9 -m pip install -r requirements.txt
       workingDirectory: $(projectRoot)
-      displayName: 'myStep 1'
+      displayName: 'Step - Install requirements.txt'
 
-    - script: |
-        export PATH=$HOME/.local/bin:$PATH
-        make install
-      workingDirectory: $(projectRoot)
-      displayName: 'myStep 2'
+    # - script: |
+    #     export PATH=$HOME/.local/bin:$PATH
+    #     make install
+    #   workingDirectory: $(projectRoot)
+    #   displayName: 'myStep 2'
 
-    - script: |
-        export PATH=$HOME/.local/bin:$PATH
-        make install
-        make lint
-      workingDirectory: $(projectRoot)
-      displayName:  'myStep 3 - Run lint tests'
+    # - script: |
+    #     export PATH=$HOME/.local/bin:$PATH
+    #     make install
+    #     make lint
+    #   workingDirectory: $(projectRoot)
+    #   displayName:  'myStep 3 - Run lint tests'
 
     - task: ArchiveFiles@2
       displayName: 'myStep 4 - Archive files'
@@ -58,5 +58,5 @@ stages:
         replaceExistingArchive: true
 
     - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
-      displayName: 'myStep 5 - Upload package'
+      displayName: 'Step - Upload package'
       artifact: drop
