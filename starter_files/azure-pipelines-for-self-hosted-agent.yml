@@ -6,17 +6,17 @@ trigger:
 - main
 
 # TODO: Replace the agent pool name
-pool: myAgentPool
+pool: Naveen-LinuxVM
 
 variables:
   # TODO: Replace the service connection name as used in the DevOps project settings
-  azureServiceConnectionId: 'mySC'
+  #azureServiceConnectionId: 'mySC'
   
   # TODO: Specify the value of the existing Web App name
-  webAppName: 'mywebapp207578'
+  #webAppName: 'mywebapp207578'
 
   # Environment name
-  environmentName: 'flask-ml-service'
+  #environmentName: 'flask-ml-service'
 
   # Project root folder. Point to the folder containing manage.py file.
   projectRoot: $(System.DefaultWorkingDirectory)
@@ -26,7 +26,7 @@ stages:
   displayName: Build stage
   jobs:
   - job: BuildJob
-    pool: myAgentPool
+    pool: Naveen-LinuxVM
     steps:    
     - script: |
         python3.7 -m pip install --upgrade pip
