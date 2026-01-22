@@ -33,15 +33,10 @@ stages:
         python3.9 --version || true
         python3.9 -m pip --version || true
         python3.9 -c "import sys; print(sys.executable)"
+        pip install -r requirements.txt
     displayName: "Debug Python/pip"
 
-- script: |
-    python3.9 -m venv .venv
-    . .venv/bin/activate
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt
-  workingDirectory: $(projectRoot)
-  displayName: "Create venv + install deps"
+
 
 
 
