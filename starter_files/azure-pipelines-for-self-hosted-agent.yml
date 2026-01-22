@@ -57,49 +57,26 @@ stages:
 
 
 - stage: Deploy
-  displayName: Deploy stage (local)
   dependsOn: Build
   condition: succeeded()
   jobs:
-  - job: DeployJob
+  - job: DeployLocal
     pool: Naveen-LinuxVM
     steps:
     - checkout: none
-
     - download: current
       artifact: drop
-      displayName: "Deploy: download artifact"
 
     - script: |
         set -euo pipefail
-
+        DEPLOY_DIR="/home/320273321/deploy/flaskapp"
         TAR_FILE="$(Pipeline.Workspace)/drop/$(Build.BuildId).tar"
-        DEPLOY_DIR="$(deployRoot)"
-
-        echo "Tar: $TAR_FILE"
-        echo "Deploy dir: $DEPLOY_DIR"
-
         mkdir -p "$DEPLOY_DIR"
-
-        # Extract over the deploy dir (overlay)
         tar -xf "$TAR_FILE" -C "$DEPLOY_DIR"
+      displayName: "Deploy files"
 
-        cd "$DEPLOY_DIR"
+    - script: |
+        set -euo pipefail
+        /home/320273321/deploy/flaskapp/run.sh
+      displayName: "Restart app"
 
-        # Create venv fresh in the deploy directory (prevents 'bad interpreter' fiasco)
-        rm -rf .venv
-        python3.9 -m venv .venv
-        source .venv/bin/activate
-        python -m pip install --upgrade pip
-        python -m pip install -r requirements.txt
-
-        # Restart Flask (manual-process style)
-        pkill -f "flask --app app run --host 0.0.0.0 --port 5000" || true
-        nohup flask --app app run --host 0.0.0.0 --port 5000 > flask.out 2>&1 &
-
-        sleep 2
-        curl -fsS http://127.0.0.1:5000/ | head
-
-        echo "Deployed and running from: $DEPLOY_DIR"
-        echo "Logs: $DEPLOY_DIR/flask.out"
-      displayName: "Deploy: extract tar, create venv, install deps, restart Flask, smoke test"
