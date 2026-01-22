@@ -57,26 +57,75 @@ stages:
 
 
 - stage: Deploy
+  displayName: "Deploy locally (from artifact) + restart Flask"
   dependsOn: Build
   condition: succeeded()
   jobs:
-  - job: DeployLocal
+  - job: DeployJob
     pool: Naveen-LinuxVM
     steps:
     - checkout: none
+
     - download: current
       artifact: drop
+      displayName: "Download artifact"
 
     - script: |
         set -euo pipefail
+
         DEPLOY_DIR="/home/320273321/deploy/flaskapp"
+        PORT="5000"
         TAR_FILE="$(Pipeline.Workspace)/drop/$(Build.BuildId).tar"
+
+        echo "User: $(whoami)"
+        echo "Deploy dir: $DEPLOY_DIR"
+        echo "Artifact: $TAR_FILE"
+
+        # 1) Deploy files (extract tar into deploy dir)
         mkdir -p "$DEPLOY_DIR"
         tar -xf "$TAR_FILE" -C "$DEPLOY_DIR"
-      displayName: "Deploy files"
 
-    - script: |
-        set -euo pipefail
-        /home/320273321/deploy/flaskapp/run.sh
-      displayName: "Restart app"
+        # 2) Create venv fresh in deploy dir (avoid venv path issues)
+        cd "$DEPLOY_DIR"
+        rm -rf .venv
+        python3.9 -m venv .venv
+        . .venv/bin/activate
+
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+
+        echo "Using python: $(which python)"
+        echo "Using flask:  $(which flask)"
+
+        # 3) Stop existing Flask (ignore if not running)
+        pkill -f "flask --app app run --host 0.0.0.0 --port $PORT" || true
+
+        # 4) Start Flask from deploy dir using ABSOLUTE venv flask path
+        #    Use bash -lc to guarantee working dir + env for the launched process.
+        nohup bash -lc "
+          cd '$DEPLOY_DIR' &&
+          exec '$DEPLOY_DIR/.venv/bin/flask' --app app run --host 0.0.0.0 --port $PORT
+        " > flask.out 2>&1 &
+
+        # 5) Health check with retries
+        for i in {1..15}; do
+          if curl -fsS "http://127.0.0.1:$PORT/" >/dev/null; then
+            echo "OK: Flask is up on 127.0.0.1:$PORT"
+            exit 0
+          fi
+          sleep 1
+        done
+
+        echo "ERROR: Flask did not come up after deploy."
+        echo "Last 200 lines of flask.out:"
+        tail -n 200 "$DEPLOY_DIR/flask.out" || true
+
+        echo "Port listeners on $PORT:"
+        ss -ltnp | grep ":$PORT" || true
+
+        echo "Matching processes:"
+        ps -ef | grep -E "flask .*run|flask --app" | grep -v grep || true
+
+        exit 1
+      displayName: "Deploy tar -> venv -> restart Flask -> smoke test"
 
