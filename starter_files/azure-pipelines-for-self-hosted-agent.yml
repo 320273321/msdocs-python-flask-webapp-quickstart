@@ -52,22 +52,6 @@ stages:
 
 
 
-
-
-
-    # - script: |
-    #     export PATH=$HOME/.local/bin:$PATH
-    #     make install
-    #   workingDirectory: $(projectRoot)
-    #   displayName: 'myStep 2'
-
-    # - script: |
-    #     export PATH=$HOME/.local/bin:$PATH
-    #     make install
-    #     make lint
-    #   workingDirectory: $(projectRoot)
-    #   displayName:  'myStep 3 - Run lint tests'
-
     - task: ArchiveFiles@2
       displayName: 'Archive files'
       inputs:
@@ -80,3 +64,34 @@ stages:
     - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar
       displayName: 'Step - Upload package'
       artifact: drop
+
+- stage: DeployLocal
+  displayName: "Deploy locally"
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: DeployJob
+    pool: Naveen-LinuxVM
+    steps:
+    - download: current
+      artifact: drop
+      displayName: "Download artifact"
+
+    - script: |
+        set -euo pipefail
+        RUN_DIR="/home/320273321/msdocs-python-flask-webapp-quickstart"
+        PKG="$(Pipeline.Workspace)/drop/$(Build.BuildId).tar"
+
+        mkdir -p "$RUN_DIR"
+        tar -xf "$PKG" -C "$RUN_DIR"  # if tar
+
+      displayName: "Extract package into run directory"
+
+    - script: |
+        set -euo pipefail
+        pkill -f "flask --app app run --host 0.0.0.0 --port 5000" || true
+        cd /home/320273321/msdocs-python-flask-webapp-quickstart
+        nohup flask --app app run --host 0.0.0.0 --port 5000 > flask.out 2>&1 &
+        sleep 2
+        curl -fsS http://127.0.0.1:5000/ | head
+      displayName: "Restart Flask + smoke test"
